@@ -1,6 +1,5 @@
-﻿namespace Festify.Promotion.Messages.Sales
+﻿namespace Festify.Promotion.Messages.Sales;
+public class OrderPlaced
 {
-    public class OrderPlaced
-    {
-    }
+}
 }
