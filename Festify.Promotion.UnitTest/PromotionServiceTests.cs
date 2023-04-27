@@ -7,28 +7,45 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Festify.Promotion.UnitTest;
 
-public class PromotionServiceTests
+public class PromotionServiceTests : IAsyncLifetime
 {
+    private InMemoryTestHarness _harness;
+    private IPublishEndpoint _publishEndpoint;
+    private IPaymentProcessor _paymentProcessor;
+
+    public PromotionServiceTests()
+    {
+        _harness = new InMemoryTestHarness();
+    }
+
+    public async Task InitializeAsync()
+    {
+        await _harness.Start();
+        _publishEndpoint = _harness.Bus;
+        _paymentProcessor = new FakePaymentProcessor();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _harness.Stop();
+    }
+
     [Fact]
     public async Task WhenCustomerPurchasesItem_ThenPurchaseIsPublished()
     {
-        InMemoryTestHarness harness = new InMemoryTestHarness();
-        await harness.Start();
-
         // Arrange
-        IPublishEndpoint publishEndpoint = harness.Bus;
-        var producer = new PromotionService(publishEndpoint);
+        var producer = new PromotionService(_publishEndpoint, _paymentProcessor);
 
         // Act
         await producer.PurchaseTicket();
 
-        await harness.InactivityTask;
+        await _harness.InactivityTask;
 
         // Assert
-        harness.Published.Select<OrderPlaced>()
+        _harness.Published.Select<OrderPlaced>()
             .Count().Should().Be(1);
 
-        await harness.Stop();
+        await _harness.Stop();
     }
 
     [Fact]

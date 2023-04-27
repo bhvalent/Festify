@@ -2,4 +2,3 @@
 public class OrderPlaced
 {
 }
-}
