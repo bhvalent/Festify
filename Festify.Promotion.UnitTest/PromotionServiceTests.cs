@@ -11,7 +11,6 @@ public class PromotionServiceTests : IAsyncLifetime
 {
     private InMemoryTestHarness _harness;
     private IPublishEndpoint _publishEndpoint;
-    private IPaymentProcessor _paymentProcessor;
 
     public PromotionServiceTests()
     {
@@ -22,7 +21,6 @@ public class PromotionServiceTests : IAsyncLifetime
     {
         await _harness.Start();
         _publishEndpoint = _harness.Bus;
-        _paymentProcessor = new FakePaymentProcessor();
     }
 
     public async Task DisposeAsync()
@@ -34,10 +32,10 @@ public class PromotionServiceTests : IAsyncLifetime
     public async Task WhenCustomerPurchasesItem_ThenPurchaseIsPublished()
     {
         // Arrange
-        var producer = new PromotionService(_publishEndpoint, _paymentProcessor);
+        var producer = new PromotionService(_publishEndpoint);
 
         // Act
-        await producer.PurchaseTicket();
+        await producer.PurchaseTicket("123", 0.0m);
 
         await _harness.InactivityTask;
 
@@ -51,31 +49,40 @@ public class PromotionServiceTests : IAsyncLifetime
     [Fact]
     public async Task WhenCustomerPurchasesItem_ThenCustomerIsCharged()
     {
+        // Arrange
+        var creditCardNumber = "123456";
+        var total = 21.12m;
+
         var fakePaymentProcessor = new FakePaymentProcessor();
 
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddScoped<PromotionService>();
         serviceCollection.AddSingleton<IPaymentProcessor>(fakePaymentProcessor);
         serviceCollection.AddMassTransitInMemoryTestHarness(cfg =>
-        {
+        { 
+            cfg.AddConsumer<CustomerChargeConsumer>(); 
         });
+
         await using var provider = serviceCollection.BuildServiceProvider(true);
 
         var harness = provider.GetRequiredService<InMemoryTestHarness>();
         await harness.Start();
 
-        using (var scope = provider.CreateScope())
-        {
-            var producer = scope.ServiceProvider.GetRequiredService<PromotionService>();
-            await producer.PurchaseTicket();
+        using var scope = provider.CreateScope();
 
-            await harness.InactivityTask;
+        var producer = scope.ServiceProvider.GetRequiredService<PromotionService>();
 
-            fakePaymentProcessor.Payments.Count().Should().Be(1);
-            fakePaymentProcessor.Payments.Should().Contain(
-                new FakePaymentProcessor.Payment("123456", 21.12m)
-            );
-        }
+        // Act
+        await producer.PurchaseTicket(creditCardNumber, total);
+
+        await harness.InactivityTask;
+
+        // Assert
+        fakePaymentProcessor.Payments.Count().Should().Be(1);
+        fakePaymentProcessor.Payments.Should().Contain(
+            new FakePaymentProcessor.Payment(creditCardNumber, total)
+        );
+        
 
         await harness.Stop();
     }

@@ -7,17 +7,18 @@ namespace Festify.Promotion.Sales;
 public class PromotionService
 {
     private IPublishEndpoint _publishEndpoint;
-    private IPaymentProcessor _paymentProcessor;
 
-    public PromotionService(IPublishEndpoint publishEndpoint, IPaymentProcessor paymentProcessor)
+    public PromotionService(IPublishEndpoint publishEndpoint)
     {
         _publishEndpoint = publishEndpoint;
-        _paymentProcessor = paymentProcessor;
     }
 
-    public async Task PurchaseTicket()
+    public async Task PurchaseTicket(string creditCardNumber, decimal total)
     {
-        await _paymentProcessor.ProcessCreditCardPayment("123456", 21.12m);
-        await _publishEndpoint.Publish(new OrderPlaced());
+        await _publishEndpoint.Publish(new OrderPlaced
+        {
+            CreditCardNumber = creditCardNumber,
+            Total = total
+        });
     }
 }
